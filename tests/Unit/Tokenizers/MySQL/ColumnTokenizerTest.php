@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Tokenizers\MySQL;
 
-use Tests\TestCase;
 use LaravelMigrationGenerator\Tokenizers\MySQL\ColumnTokenizer;
+use Tests\TestCase;
 
 class ColumnTokenizerTest extends TestCase
 {
@@ -147,6 +147,14 @@ class ColumnTokenizerTest extends TestCase
         $columnDefinition = $columnTokenizer->definition();
         $this->assertEquals('', $columnDefinition->getDefaultValue());
         $this->assertEquals('this is the "comment"', $columnDefinition->getComment());
+    }
+
+    public function test_it_tokenizes_varchar_with_default_empty_string_and_comment_with_apostrophe()
+    {
+        $columnTokenizer = ColumnTokenizer::parse("`testing` varchar(255) DEFAULT '' COMMENT 'this is the \"comment\" ''inside single quote''");
+        $columnDefinition = $columnTokenizer->definition();
+        $this->assertEquals('', $columnDefinition->getDefaultValue());
+        $this->assertEquals('this is the "comment" \'inside single quote\'', $columnDefinition->getComment());
     }
 
     public function test_it_tokenizes_varchar_with_boolean_literal_default()
@@ -836,6 +844,21 @@ class ColumnTokenizerTest extends TestCase
         $this->assertEquals('$table->enum(\'status_flag\', [\'1\', \'2\', \'3\', \'4\'])', $columnDefinition->render());
     }
 
+    public function test_it_tokenizes_enum_column_with_upper_case_values()
+    {
+        $columnTokenizer = ColumnTokenizer::parse('`film_rating` enum(\'G\',\'PG\',\'PG-13\',\'R\',\'NC-17\')');
+        $columnDefinition = $columnTokenizer->definition();
+
+        $this->assertEquals('film_rating', $columnDefinition->getColumnName());
+        $this->assertEquals('enum', $columnTokenizer->getColumnDataType());
+        $this->assertEquals('enum', $columnDefinition->getMethodName());
+        $this->assertCount(5, $columnDefinition->getMethodParameters()[0]);
+        $this->assertEqualsCanonicalizing(['G', 'PG', 'PG-13', 'R', 'NC-17'], $columnDefinition->getMethodParameters()[0]);
+        $this->assertNull($columnDefinition->isNullable());
+        $this->assertNull($columnDefinition->getCollation());
+        $this->assertEquals('$table->enum(\'film_rating\', [\'G\', \'PG\', \'PG-13\', \'R\', \'NC-17\'])', $columnDefinition->render());
+    }
+
     public function test_it_tokenizes_not_null_enum_column()
     {
         $columnTokenizer = ColumnTokenizer::parse('`status_flag` enum(\'1\',\'2\',\'3\',\'4\') NOT NULL');
@@ -897,6 +920,14 @@ class ColumnTokenizerTest extends TestCase
         $definition = $columnTokenizer->definition();
 
         $this->assertEquals('$table->enum(\'calculate\', [\'one\', \'and\', \'highest-or\', \'lowest^or\', \'sum%\', \'highest $ position or\', \'lowest+_<>?/ position or\', \'"quoted"\'])->comment("set the way we calculate a feature value. with high or low or the sort is by position")', $definition->render());
+    }
+
+    public function test_it_tokenizes_enum_with_empty_string()
+    {
+        $columnTokenizer = ColumnTokenizer::parse('`text` enum(\'\',\'not-empty-string\',\'string with spaces\') DEFAULT \'\'');
+        $definition = $columnTokenizer->definition();
+
+        $this->assertEquals('$table->enum(\'text\', [\'\', \'not-empty-string\', \'string with spaces\'])->default(\'\')', $definition->render());
     }
 
     //endregion
